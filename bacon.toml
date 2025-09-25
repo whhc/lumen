@@ -1,0 +1,23 @@
+# 默认任务，启动后按 `c` 就能切过来
+[jobs.check]
+command = ["cargo", "check", "--manifest-path", "src-tauri/Cargo.toml"]
+need_stdout = false
+watch = ["src-tauri/src", "src-tauri/Cargo.toml"]
+
+# 带 Clippy 的严格检查
+[jobs.clippy]
+command = ["cargo", "clippy", "--manifest-path", "src-tauri/Cargo.toml", "--", "-D", "warnings"]
+need_stdout = false
+watch = ["src-tauri/src", "src-tauri/Cargo.toml"]
+
+# 前端 + Rust 一起热编（可选）
+[jobs.dev]
+command = ["cargo", "tauri", "dev"]
+need_stdout = true          # dev 服务器要输出日志
+watch = ["src-tauri/src", "src-tauri/Cargo.toml"]
+
+# 按 t 跑测试
+[jobs.test]
+command = ["cargo", "test", "--manifest-path", "src-tauri/Cargo.toml"]
+need_stdout = true
+watch = ["src-tauri/src", "src-tauri/Cargo.toml"]
