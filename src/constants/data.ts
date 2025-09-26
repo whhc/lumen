@@ -1,0 +1,1 @@
+export const PREVIEW_MEDIA_LIST = 'preview_media_list'

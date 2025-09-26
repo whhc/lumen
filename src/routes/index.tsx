@@ -1,9 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({
-  component: RouteComponent,
+  component: HomeRoute,
+  beforeLoad: () => {
+    throw redirect({
+      to: '/library',
+    });
+  },
 });
 
-function RouteComponent() {
-  return <div className="p-2 text-orange-500">Hello "/"!</div>;
+function HomeRoute() {
+  return <div>Redirecting to library...</div>;
 }
