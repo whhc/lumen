@@ -1,39 +1,43 @@
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"
-import { 
-  LayoutGrid, 
-  List, 
-  Upload, 
-  CheckSquare, 
-  ArrowUpDown, 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  LayoutGrid,
+  List,
+  Upload,
+  CheckSquare,
+  ArrowUpDown,
   Filter,
-  MoreHorizontal
-} from "lucide-react"
+  MoreHorizontal,
+  ChevronDown,
+  File,
+  Folder,
+} from 'lucide-react';
 
 interface ToolbarProps {
-  selectedCount: number
-  viewMode: 'grid' | 'list'
-  sortBy: string
-  searchQuery: string
-  onViewModeChange: (mode: 'grid' | 'list') => void
-  onSortChange: (sort: string) => void
-  onSearchChange: (query: string) => void
-  onImport: () => void
-  onSelectAll: () => void
-  className?: string
+  selectedCount: number;
+  viewMode: 'grid' | 'list';
+  sortBy: string;
+  searchQuery: string;
+  onViewModeChange: (mode: 'grid' | 'list') => void;
+  onSortChange: (sort: string) => void;
+  onSearchChange: (query: string) => void;
+  onImportFiles: () => void;
+  onImportFolder: () => void;
+  onSelectAll: () => void;
+  className?: string;
 }
 
 export function Toolbar({
@@ -44,20 +48,37 @@ export function Toolbar({
   onViewModeChange,
   onSortChange,
   onSearchChange,
-  onImport,
+  onImportFiles,
+  onImportFolder,
   onSelectAll,
-  className
+  className,
 }: ToolbarProps) {
   return (
     <div className={className}>
       <div className="flex items-center justify-between p-4 border-b border-border">
         {/* 左侧操作区 */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onImport}>
-            <Upload className="w-4 h-4 mr-2" />
-            导入
-          </Button>
-          
+          {/* 导入下拉菜单 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Upload className="w-4 h-4 mr-2" />
+                导入
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={onImportFiles}>
+                <File className="w-4 h-4 mr-2" />
+                导入文件
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onImportFolder}>
+                <Folder className="w-4 h-4 mr-2" />
+                导入文件夹
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button variant="outline" size="sm" onClick={onSelectAll}>
             <CheckSquare className="w-4 h-4 mr-2" />
             选择
@@ -138,5 +159,5 @@ export function Toolbar({
         </div>
       </div>
     </div>
-  )
+  );
 }

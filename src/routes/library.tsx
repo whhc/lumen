@@ -11,6 +11,7 @@ import { emitTo, listen } from '@tauri-apps/api/event';
 import { REQUEST_PREVIEW_DATA } from '@/constants/request';
 import { MEDIA_PREVIEW } from '@/constants/windows';
 import { PREVIEW_MEDIA_LIST } from '@/constants/data';
+import { open } from '@tauri-apps/plugin-dialog';
 
 export const Route = createFileRoute('/library')({
   component: LibraryRoute,
@@ -62,9 +63,35 @@ function LibraryRoute() {
     });
   };
 
-  const handleImport = () => {
-    // TODO: 实现导入功能
-    console.log('Import media');
+  const handleImportFiles = async () => {
+    try {
+      const selected = await open({
+        multiple: true,
+        filters: [
+          {
+            name: 'Images',
+            extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+          },
+        ],
+      });
+      console.log('导入文件:', selected);
+    } catch (error) {
+      console.error('导入文件失败:', error);
+    }
+  };
+
+  const handleImportFolder = async () => {
+    try {
+      const folder = await open({ directory: true });
+      if (folder) {
+        const images = await tauriClient.call('read_images_in_dir', {
+          dir: folder,
+        });
+        console.log(images);
+      }
+    } catch (error) {
+      console.error('导入文件夹失败:', error);
+    }
   };
 
   // 详情面板组件
@@ -125,7 +152,8 @@ function LibraryRoute() {
           onViewModeChange={setViewMode}
           onSortChange={setSortBy}
           onSearchChange={setSearchQuery}
-          onImport={handleImport}
+          onImportFiles={handleImportFiles}
+          onImportFolder={handleImportFolder}
           onSelectAll={handleSelectAll}
         />
 

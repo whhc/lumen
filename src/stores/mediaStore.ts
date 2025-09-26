@@ -11,6 +11,13 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
     sort: { by: "takenDate", order: "desc" },
     pagination: { page: 1, pageSize: 50 },
 
+    addMedia: async (media: MediaRecord[]) => {
+        set((state) => ({
+            photos: [...state.photos, ...media],
+            total: media.length,
+        }));
+    },
+
     loadMedia: async (opts) => {
         set({ isLoading: true });
         try {
