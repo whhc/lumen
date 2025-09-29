@@ -4,6 +4,7 @@ import { Layout } from '@/components/Layout';
 import { Sidebar } from '@/components/Sidebar';
 import { Toolbar } from '@/components/Toolbar';
 import { MediaGrid } from '@/components/MediaGrid';
+import { ImportProgressDialog } from '@/components/ImportProgressDialog';
 import { useMediaStore } from '@/stores/mediaStore';
 import { MediaRecord } from '@/types/models';
 import { tauriClient } from '@/api/tauriClient';
@@ -24,6 +25,7 @@ function LibraryRoute() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('date-desc');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showProgressDialog, setShowProgressDialog] = useState(false);
 
   useEffect(() => {
     loadMedia();
@@ -76,11 +78,19 @@ function LibraryRoute() {
         ],
       });
       if (selected && Array.isArray(selected)) {
-        let images = await tauriClient.call(GET_MEDIA_RECORDS, { paths: selected })  
+        setShowProgressDialog(true);
+        let images = await tauriClient.call(GET_MEDIA_RECORDS, { paths: selected });
         addMedia(images as unknown as MediaRecord[]);
+        
+        // 等待一小段时间，确保 completed 事件能够被接收
+        setTimeout(() => {
+          // 如果还是没有接收到 completed 事件，手动关闭对话框
+          // setShowProgressDialog(false);
+        }, 1000);
       }
     } catch (error) {
       console.error('导入文件失败:', error);
+      setShowProgressDialog(false);
     }
   };
 
@@ -88,13 +98,17 @@ function LibraryRoute() {
     try {
       const folder = await open({ directory: true });
       if (folder) {
+        setShowProgressDialog(true);
         const images = await tauriClient.call('read_images_in_dir', {
           dir: folder,
         });
         addMedia(images as unknown as MediaRecord[]);
+        // 进度对话框会在接收到 completed 事件后自动关闭
+        // setShowProgressDialog(false);
       }
     } catch (error) {
       console.error('导入文件夹失败:', error);
+      setShowProgressDialog(false);
     }
   };
 
@@ -192,6 +206,12 @@ function LibraryRoute() {
             </span>
           </div>
         </div>
+
+        {/* 进度对话框 */}
+        <ImportProgressDialog 
+          isOpen={showProgressDialog} 
+          onClose={() => setShowProgressDialog(false)} 
+        />
       </div>
     </Layout>
   );

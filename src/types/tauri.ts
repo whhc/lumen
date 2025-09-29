@@ -8,7 +8,15 @@ export type TauriEventName =
     | "faces-detected"
     | "media-updated"
     | "album-updated"
-    | "tag-updated";
+    | "tag-updated"
+    | "images-deal-progress";
+
+export interface ImagesDealProgressEvent {
+    current: number;
+    total: number;
+    currentFile?: string;
+    step: "scanning" | "generating_thumbnails" | "extracting_metadata" | "completed";
+}
 
 export interface ImportProgressEvent {
     current: number;
@@ -38,4 +46,5 @@ export type TauriEventPayloadMap = {
     "media-updated": MediaRecord;
     "album-updated": AlbumRecord;
     "tag-updated": TagRecord;
+    "images-deal-progress": ImagesDealProgressEvent;
 };

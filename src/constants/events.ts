@@ -1,0 +1,1 @@
+export const IMAGES_DEAL_PROGRESS_EVENT = "images-deal-progress"
