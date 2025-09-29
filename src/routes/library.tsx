@@ -12,13 +12,14 @@ import { REQUEST_PREVIEW_DATA } from '@/constants/request';
 import { MEDIA_PREVIEW } from '@/constants/windows';
 import { PREVIEW_MEDIA_LIST } from '@/constants/data';
 import { open } from '@tauri-apps/plugin-dialog';
+import { GET_MEDIA_RECORDS } from '@/constants/commands';
 
 export const Route = createFileRoute('/library')({
   component: LibraryRoute,
 });
 
 function LibraryRoute() {
-  const { photos, isLoading, loadMedia } = useMediaStore();
+  const { photos, isLoading, loadMedia, addMedia } = useMediaStore();
   const [selectedMedia, setSelectedMedia] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('date-desc');
@@ -74,7 +75,10 @@ function LibraryRoute() {
           },
         ],
       });
-      console.log('导入文件:', selected);
+      if (selected && Array.isArray(selected)) {
+        let images = await tauriClient.call(GET_MEDIA_RECORDS, { paths: selected })  
+        addMedia(images as unknown as MediaRecord[]);
+      }
     } catch (error) {
       console.error('导入文件失败:', error);
     }
@@ -87,7 +91,7 @@ function LibraryRoute() {
         const images = await tauriClient.call('read_images_in_dir', {
           dir: folder,
         });
-        console.log(images);
+        addMedia(images as unknown as MediaRecord[]);
       }
     } catch (error) {
       console.error('导入文件夹失败:', error);

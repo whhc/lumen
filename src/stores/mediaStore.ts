@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { MediaStoreState } from "../types/store";
 import { mediaApi } from "@/api/mediaApi";
 import { MediaRecord } from "@/types/models";
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 export const useMediaStore = create<MediaStoreState>((set, get) => ({
     photos: [],
@@ -12,6 +13,15 @@ export const useMediaStore = create<MediaStoreState>((set, get) => ({
     pagination: { page: 1, pageSize: 50 },
 
     addMedia: async (media: MediaRecord[]) => {
+        media = media.map(item => {
+            console.log(item.path)
+            item.path = convertFileSrc(item.path);
+            if (item.thumbnailPath) {
+                item.thumbnailPath = convertFileSrc(item.thumbnailPath);
+            }
+            console.log(item.path)
+            return item
+        })
         set((state) => ({
             photos: [...state.photos, ...media],
             total: media.length,

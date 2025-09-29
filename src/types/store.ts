@@ -10,6 +10,8 @@ export interface MediaStoreState {
     sort: SortOptions;
     pagination: Pagination;
 
+    addMedia: (media: MediaRecord[]) => Promise<void>;
+
     loadMedia: (opts?: Partial<Pagination & { filters: FilterOptions; sort: SortOptions }>) => Promise<void>;
     refreshMedia: () => Promise<void>;
 }
