@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
+use crate::database::media_repository::MediaRepository;
 use crate::models::image::{MediaKind, MediaRecord};
 use crate::utils::image_processor::{generate_thumbnail, generate_thumbnails_batch};
 
@@ -39,7 +40,8 @@ fn _is_supported_image(path: &Path) -> bool {
 }
 
 #[tauri::command]
-pub fn read_images_in_dir(app: AppHandle, dir: String) -> Vec<MediaRecord> {
+pub async fn read_images_in_dir(app: AppHandle, dir: String) -> Result<Vec<MediaRecord>, String> {
+    let repository = MediaRepository::new(app.clone());
     let mut images = Vec::new();
     let supported_extensions: HashSet<&str> = SUPPORTED_EXTENSIONS.iter().cloned().collect();
 
@@ -71,36 +73,129 @@ pub fn read_images_in_dir(app: AppHandle, dir: String) -> Vec<MediaRecord> {
         let total_count = paths.len();
 
         if total_count > 0 {
-            // 发送扫描完成事件
+            // 首先检查哪些文件已存在于数据库中
             let _ = app.emit(
                 "images-deal-progress",
                 ImagesDealProgressEvent {
                     current: 0,
                     total: total_count,
                     current_file: None,
-                    step: "generating_thumbnails".to_string(),
+                    step: "checking_database".to_string(),
                 },
             );
 
-            // 使用并行处理批量生成缩略图
-            let path_refs: Vec<&Path> = paths.iter().map(|p| p.as_path()).collect();
-            let thumbnails = generate_thumbnails_batch_with_progress(&app, &path_refs, total_count);
+            let mut existing_records = Vec::new();
+            let mut new_paths = Vec::new();
 
-            // 发送元数据提取开始事件
-            let _ = app.emit(
-                "images-deal-progress",
-                ImagesDealProgressEvent {
-                    current: 0,
-                    total: total_count,
-                    current_file: None,
-                    step: "extracting_metadata".to_string(),
-                },
-            );
+            // 检查数据库中是否已存在这些文件
+            for (index, path) in paths.iter().enumerate() {
+                let path_str = path.to_string_lossy().to_string();
+                match repository.find_by_path(&path_str).await {
+                    Ok(Some(existing_record)) => {
+                        // 文件已存在于数据库中，直接使用
+                        existing_records.push(existing_record);
+                    }
+                    Ok(None) => {
+                        // 文件不存在于数据库中，需要处理
+                        new_paths.push(path.clone());
+                    }
+                    Err(e) => {
+                        println!("检查数据库时出错: {}", e);
+                        // 出错时也认为文件需要处理
+                        new_paths.push(path.clone());
+                    }
+                }
 
-            // 并行处理媒体记录生成
-            let results =
-                process_images_parallel_with_progress(&app, &paths, thumbnails, total_count);
-            images.extend(results.into_iter().filter_map(|r| r));
+                // 发送检查进度
+                if (index + 1) % 10 == 0 || index + 1 == total_count {
+                    let _ = app.emit(
+                        "images-deal-progress",
+                        ImagesDealProgressEvent {
+                            current: index + 1,
+                            total: total_count,
+                            current_file: None,
+                            step: "checking_database".to_string(),
+                        },
+                    );
+                }
+            }
+
+            images.extend(existing_records);
+
+            // 如果有新文件需要处理
+            if !new_paths.is_empty() {
+                let new_paths_count = new_paths.len();
+
+                // 发送扫描完成事件
+                let _ = app.emit(
+                    "images-deal-progress",
+                    ImagesDealProgressEvent {
+                        current: 0,
+                        total: new_paths_count,
+                        current_file: None,
+                        step: "generating_thumbnails".to_string(),
+                    },
+                );
+
+                // 使用并行处理批量生成缩略图
+                let path_refs: Vec<&Path> = new_paths.iter().map(|p| p.as_path()).collect();
+                let thumbnails =
+                    generate_thumbnails_batch_with_progress(&app, &path_refs, new_paths_count);
+
+                // 发送元数据提取开始事件
+                let _ = app.emit(
+                    "images-deal-progress",
+                    ImagesDealProgressEvent {
+                        current: 0,
+                        total: new_paths_count,
+                        current_file: None,
+                        step: "extracting_metadata".to_string(),
+                    },
+                );
+
+                // 并行处理媒体记录生成
+                let results = process_images_parallel_with_progress(
+                    &app,
+                    &new_paths,
+                    thumbnails,
+                    new_paths_count,
+                );
+                let new_records: Vec<MediaRecord> = results.into_iter().filter_map(|r| r).collect();
+
+                // 保存新记录到数据库
+                if !new_records.is_empty() {
+                    let _ = app.emit(
+                        "images-deal-progress",
+                        ImagesDealProgressEvent {
+                            current: 0,
+                            total: new_records.len(),
+                            current_file: None,
+                            step: "saving_to_database".to_string(),
+                        },
+                    );
+
+                    for (index, record) in new_records.iter().enumerate() {
+                        if let Err(e) = repository.save(record).await {
+                            println!("保存记录到数据库时出错: {}", e);
+                        }
+
+                        // 发送保存进度
+                        if (index + 1) % 10 == 0 || index + 1 == new_records.len() {
+                            let _ = app.emit(
+                                "images-deal-progress",
+                                ImagesDealProgressEvent {
+                                    current: index + 1,
+                                    total: new_records.len(),
+                                    current_file: None,
+                                    step: "saving_to_database".to_string(),
+                                },
+                            );
+                        }
+                    }
+
+                    images.extend(new_records);
+                }
+            }
 
             // 发送完成事件
             let _ = app.emit(
@@ -115,7 +210,14 @@ pub fn read_images_in_dir(app: AppHandle, dir: String) -> Vec<MediaRecord> {
         }
     }
 
-    images
+    // 按拍摄时间排序
+    images.sort_by(|a, b| {
+        b.taken_date
+            .cmp(&a.taken_date)
+            .then_with(|| b.created_at.cmp(&a.created_at))
+    });
+
+    Ok(images)
 }
 
 /// 带进度反馈的批量缩略图生成
@@ -378,4 +480,122 @@ pub fn get_media_records(app: AppHandle, paths: Vec<String>) -> Result<Vec<Media
     } else {
         Ok(Vec::new())
     }
+}
+
+#[tauri::command]
+pub async fn get_media_records_with_db(
+    app: AppHandle,
+    paths: Vec<String>,
+) -> Result<Vec<MediaRecord>, String> {
+    let repository = MediaRepository::new(app.clone());
+    let mut results = Vec::new();
+    let mut new_paths = Vec::new();
+
+    let total_count = paths.len();
+
+    if total_count == 0 {
+        return Ok(vec![]);
+    }
+
+    // 发送开始检查事件
+    let _ = app.emit(
+        "images-deal-progress",
+        ImagesDealProgressEvent {
+            current: 0,
+            total: total_count,
+            current_file: None,
+            step: "checking_database".to_string(),
+        },
+    );
+
+    // 检查哪些文件已存在于数据库中
+    for (index, path) in paths.iter().enumerate() {
+        match repository.find_by_path(path).await {
+            Ok(Some(existing_record)) => {
+                // 文件已存在于数据库中，直接使用
+                results.push(existing_record);
+            }
+            Ok(None) => {
+                // 文件不存在于数据库中，需要处理
+                new_paths.push(path.clone());
+            }
+            Err(e) => {
+                println!("检查数据库时出错: {}", e);
+                // 出错时也认为文件需要处理
+                new_paths.push(path.clone());
+            }
+        }
+
+        // 发送检查进度
+        if (index + 1) % 10 == 0 || index + 1 == total_count {
+            let _ = app.emit(
+                "images-deal-progress",
+                ImagesDealProgressEvent {
+                    current: index + 1,
+                    total: total_count,
+                    current_file: None,
+                    step: "checking_database".to_string(),
+                },
+            );
+        }
+    }
+
+    // 如果有新文件需要处理
+    if !new_paths.is_empty() {
+        // 处理新文件
+        let new_records = get_media_records(app.clone(), new_paths)
+            .map_err(|e| format!("处理新文件失败: {}", e))?;
+
+        // 保存新记录到数据库
+        let _ = app.emit(
+            "images-deal-progress",
+            ImagesDealProgressEvent {
+                current: 0,
+                total: new_records.len(),
+                current_file: None,
+                step: "saving_to_database".to_string(),
+            },
+        );
+
+        for (index, record) in new_records.iter().enumerate() {
+            if let Err(e) = repository.save(record).await {
+                println!("保存记录到数据库时出错: {}", e);
+            }
+
+            // 发送保存进度
+            if (index + 1) % 10 == 0 || index + 1 == new_records.len() {
+                let _ = app.emit(
+                    "images-deal-progress",
+                    ImagesDealProgressEvent {
+                        current: index + 1,
+                        total: new_records.len(),
+                        current_file: None,
+                        step: "saving_to_database".to_string(),
+                    },
+                );
+            }
+        }
+
+        results.extend(new_records);
+    }
+
+    // 按拍摄时间排序
+    results.sort_by(|a, b| {
+        b.taken_date
+            .cmp(&a.taken_date)
+            .then_with(|| b.created_at.cmp(&a.created_at))
+    });
+
+    // 发送完成事件
+    let _ = app.emit(
+        "images-deal-progress",
+        ImagesDealProgressEvent {
+            current: total_count,
+            total: total_count,
+            current_file: None,
+            step: "completed".to_string(),
+        },
+    );
+
+    Ok(results)
 }

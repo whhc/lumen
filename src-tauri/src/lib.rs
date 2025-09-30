@@ -5,10 +5,16 @@ fn greet(name: &str) -> String {
 }
 
 mod commands;
+mod database;
 mod models;
 mod utils;
 
-use commands::image_import::{get_media_record, get_media_records, read_images_in_dir};
+use commands::database_commands::{
+    delete_all_media, delete_selected_media, get_media_detail, get_media_list, import_media,
+};
+use commands::image_import::{
+    get_media_record, get_media_records, get_media_records_with_db, read_images_in_dir,
+};
 use tauri::{path::BaseDirectory, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -28,7 +34,13 @@ pub fn run() {
             greet,
             read_images_in_dir,
             get_media_record,
-            get_media_records
+            get_media_records,
+            get_media_records_with_db,
+            get_media_list,
+            get_media_detail,
+            import_media,
+            delete_selected_media,
+            delete_all_media
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

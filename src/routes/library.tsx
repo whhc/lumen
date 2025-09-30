@@ -13,23 +13,64 @@ import { REQUEST_PREVIEW_DATA } from '@/constants/request';
 import { MEDIA_PREVIEW } from '@/constants/windows';
 import { PREVIEW_MEDIA_LIST } from '@/constants/data';
 import { open } from '@tauri-apps/plugin-dialog';
-import { GET_MEDIA_RECORDS } from '@/constants/commands';
+import { confirm } from '@tauri-apps/plugin-dialog';
+import { useTauriEvent } from '@/hooks/use-tauri-event';
+import { IMAGES_DEAL_PROGRESS_EVENT, IMAGES_DELETE_PROGRESS_EVENT } from '@/constants/events';
+import { ImagesDealProgressEvent, ImagesDeleteProgressEvent } from '@/types/tauri';
+import { mediaApi } from '@/api/mediaApi';
 
 export const Route = createFileRoute('/library')({
   component: LibraryRoute,
 });
 
 function LibraryRoute() {
-  const { photos, isLoading, loadMedia, addMedia } = useMediaStore();
+  const { photos, isLoading, loadMedia } = useMediaStore();
   const [selectedMedia, setSelectedMedia] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('date-desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [showProgressDialog, setShowProgressDialog] = useState(false);
+  const [progressOperationType, setProgressOperationType] = useState<'import' | 'delete'>('import');
 
   useEffect(() => {
     loadMedia();
   }, [loadMedia]);
+
+  // 监听导入进度事件，当导入完成时重新加载媒体数据
+  useTauriEvent<ImagesDealProgressEvent>(IMAGES_DEAL_PROGRESS_EVENT, (event) => {
+    const progressData = event.payload;
+    
+    // 当导入完成时，重新加载媒体数据
+    if (progressData.step === 'completed') {
+      console.log('导入操作完成，重新加载媒体数据');
+      // 延迟一点时间确保数据库操作完成，参考Tauri事件时序竞争解决方案
+      setTimeout(() => {
+        loadMedia();
+        // 在延迟后设置关闭进度对话框，作为兜底机制
+        setTimeout(() => {
+          setShowProgressDialog(false);
+        }, 2500); // 稍微比ImportProgressDialog的自动关闭时间晚一点
+      }, 500);
+    }
+  });
+
+  // 监听删除进度事件，当删除完成时重新加载媒体数据
+  useTauriEvent<ImagesDeleteProgressEvent>(IMAGES_DELETE_PROGRESS_EVENT, (event) => {
+    const progressData = event.payload;
+    
+    // 当删除完成时，重新加载媒体数据
+    if (progressData.step === 'completed') {
+      console.log('删除操作完成，重新加载媒体数据');
+      // 延迟一点时间确保数据库操作完成，参考Tauri事件时序竞争解决方案
+      setTimeout(() => {
+        loadMedia();
+        // 在延迟后设置关闭进度对话框，作为兜底机制
+        setTimeout(() => {
+          setShowProgressDialog(false);
+        }, 2500); // 稍微比ImportProgressDialog的自动关闭时间晚一点
+      }, 500);
+    }
+  });
 
   const handleSelectMedia = (mediaId: string) => {
     setSelectedMedia((prev) => {
@@ -78,15 +119,11 @@ function LibraryRoute() {
         ],
       });
       if (selected && Array.isArray(selected)) {
+        setProgressOperationType('import');
         setShowProgressDialog(true);
-        let images = await tauriClient.call(GET_MEDIA_RECORDS, { paths: selected });
-        addMedia(images as unknown as MediaRecord[]);
-        
-        // 等待一小段时间，确保 completed 事件能够被接收
-        setTimeout(() => {
-          // 如果还是没有接收到 completed 事件，手动关闭对话框
-          // setShowProgressDialog(false);
-        }, 1000);
+        // 使用带数据库功能的导入方法
+        const images = await tauriClient.call('get_media_records_with_db', { paths: selected }) as MediaRecord[];
+        console.log('文件导入完成，处理了', images.length, '个文件');
       }
     } catch (error) {
       console.error('导入文件失败:', error);
@@ -98,16 +135,57 @@ function LibraryRoute() {
     try {
       const folder = await open({ directory: true });
       if (folder) {
+        setProgressOperationType('import');
         setShowProgressDialog(true);
         const images = await tauriClient.call('read_images_in_dir', {
           dir: folder,
-        });
-        addMedia(images as unknown as MediaRecord[]);
-        // 进度对话框会在接收到 completed 事件后自动关闭
-        // setShowProgressDialog(false);
+        }) as MediaRecord[];
+        console.log('文件夹导入完成，处理了', images.length, '个文件');
       }
     } catch (error) {
       console.error('导入文件夹失败:', error);
+      setShowProgressDialog(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedMedia.size === 0) {
+      console.warn('没有选中任何媒体文件');
+      return;
+    }
+
+    // 显示确认对话框
+    const confirmed = await confirm(`确定要删除选中的 ${selectedMedia.size} 个媒体文件吗？此操作不可撤销。`);
+    if (!confirmed) return;
+
+    try {
+      setProgressOperationType('delete');
+      setShowProgressDialog(true);
+      const mediaIds = Array.from(selectedMedia);
+      const deletedCount = await mediaApi.deleteSelectedMedia(mediaIds);
+      console.log(`已成功删除 ${deletedCount} 个媒体文件`);
+      // 清空选中状态
+      setSelectedMedia(new Set());
+    } catch (error) {
+      console.error('删除选中媒体失败:', error);
+      setShowProgressDialog(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    // 显示确认对话框
+    const confirmed = await confirm('确定要清空所有媒体文件吗？此操作不可撤销。');
+    if (!confirmed) return;
+
+    try {
+      setProgressOperationType('delete');
+      setShowProgressDialog(true);
+      const result = await mediaApi.deleteAllMedia();
+      console.log('清空所有媒体文件完成:', result);
+      // 清空选中状态
+      setSelectedMedia(new Set());
+    } catch (error) {
+      console.error('清空所有媒体失败:', error);
       setShowProgressDialog(false);
     }
   };
@@ -173,6 +251,8 @@ function LibraryRoute() {
           onImportFiles={handleImportFiles}
           onImportFolder={handleImportFolder}
           onSelectAll={handleSelectAll}
+          onDeleteSelected={handleDeleteSelected}
+          onDeleteAll={handleDeleteAll}
         />
 
         {/* 内容区域 */}
@@ -211,6 +291,7 @@ function LibraryRoute() {
         <ImportProgressDialog 
           isOpen={showProgressDialog} 
           onClose={() => setShowProgressDialog(false)} 
+          operationType={progressOperationType}
         />
       </div>
     </Layout>

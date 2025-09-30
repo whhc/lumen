@@ -27,3 +27,4 @@ uuid = { version = "1.10", features = ["v4", "v5", "serde", "fast-rng"] }
 chrono = { version = "0.4", features = ["serde"] }
 kamadak-exif = "0.6"
 image = "0.25"
+rusqlite = { version = "0.28.0", features = ["bundled"] }

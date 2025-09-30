@@ -9,13 +9,21 @@ export type TauriEventName =
     | "media-updated"
     | "album-updated"
     | "tag-updated"
-    | "images-deal-progress";
+    | "images-deal-progress"
+    | "images-delete-progress";
 
 export interface ImagesDealProgressEvent {
     current: number;
     total: number;
     currentFile?: string;
-    step: "scanning" | "generating_thumbnails" | "extracting_metadata" | "completed";
+    step: "scanning" | "generating_thumbnails" | "extracting_metadata" | "checking_database" | "saving_to_database" | "completed";
+}
+
+export interface ImagesDeleteProgressEvent {
+    current: number;
+    total: number;
+    currentFile?: string;
+    step: "deleting_selected" | "deleting_all" | "completed";
 }
 
 export interface ImportProgressEvent {
@@ -47,4 +55,5 @@ export type TauriEventPayloadMap = {
     "album-updated": AlbumRecord;
     "tag-updated": TagRecord;
     "images-deal-progress": ImagesDealProgressEvent;
+    "images-delete-progress": ImagesDeleteProgressEvent;
 };

@@ -24,6 +24,8 @@ import {
   ChevronDown,
   File,
   Folder,
+  Trash2,
+  TrashIcon,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -37,6 +39,8 @@ interface ToolbarProps {
   onImportFiles: () => void;
   onImportFolder: () => void;
   onSelectAll: () => void;
+  onDeleteSelected?: () => void;
+  onDeleteAll?: () => void;
   className?: string;
 }
 
@@ -51,6 +55,8 @@ export function Toolbar({
   onImportFiles,
   onImportFolder,
   onSelectAll,
+  onDeleteSelected,
+  onDeleteAll,
   className,
 }: ToolbarProps) {
   return (
@@ -83,6 +89,18 @@ export function Toolbar({
             <CheckSquare className="w-4 h-4 mr-2" />
             选择
           </Button>
+
+          {/* 删除操作按钮 */}
+          {selectedCount > 0 && onDeleteSelected && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={onDeleteSelected}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              删除选中 ({selectedCount})
+            </Button>
+          )}
 
           {selectedCount > 0 && (
             <span className="text-sm text-muted-foreground">
@@ -154,6 +172,15 @@ export function Toolbar({
                 <ArrowUpDown className="w-4 h-4 mr-2" />
                 批量操作
               </DropdownMenuItem>
+              {onDeleteAll && (
+                <DropdownMenuItem 
+                  onClick={onDeleteAll}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <TrashIcon className="w-4 h-4 mr-2" />
+                  清空所有
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

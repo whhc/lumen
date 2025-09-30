@@ -3,27 +3,48 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useTauriEvent } from '@/hooks/use-tauri-event';
-import { IMAGES_DEAL_PROGRESS_EVENT } from '@/constants/events';
-import { ImagesDealProgressEvent } from '@/types/tauri';
+import { IMAGES_DEAL_PROGRESS_EVENT, IMAGES_DELETE_PROGRESS_EVENT } from '@/constants/events';
+import { ImagesDealProgressEvent, ImagesDeleteProgressEvent } from '@/types/tauri';
 
 interface ImportProgressDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  // 新增：区分操作类型
+  operationType?: 'import' | 'delete';
 }
 
-export function ImportProgressDialog({ isOpen, onClose }: ImportProgressDialogProps) {
-  const [progress, setProgress] = useState<ImagesDealProgressEvent>({
+export function ImportProgressDialog({ isOpen, onClose, operationType = 'import' }: ImportProgressDialogProps) {
+  const [progress, setProgress] = useState<ImagesDealProgressEvent | ImagesDeleteProgressEvent>({
     current: 0,
     total: 0,
     currentFile: undefined,
-    step: 'scanning',
+    step: operationType === 'import' ? 'scanning' : 'deleting_selected',
   });
 
   const [isCompleted, setIsCompleted] = useState(false);
 
-  // 监听进度事件
+  // 监听导入进度事件
   useTauriEvent<ImagesDealProgressEvent>(IMAGES_DEAL_PROGRESS_EVENT, (event) => {
-    console.log('Received progress event:', event.payload);
+    if (operationType !== 'import') return; // 只在导入模式下处理导入事件
+    
+    const progressData = event.payload;
+    setProgress(progressData);
+    
+    // 检查是否完成
+    if (progressData.step === 'completed') {
+      setIsCompleted(true);
+      
+      // 延迟 2 秒后自动关闭对话框
+      setTimeout(() => {
+        onClose();
+      }, 2000);
+    }
+  });
+
+  // 监听删除进度事件
+  useTauriEvent<ImagesDeleteProgressEvent>(IMAGES_DELETE_PROGRESS_EVENT, (event) => {
+    if (operationType !== 'delete') return; // 只在删除模式下处理删除事件
+    
     const progressData = event.payload;
     setProgress(progressData);
     
@@ -45,11 +66,15 @@ export function ImportProgressDialog({ isOpen, onClose }: ImportProgressDialogPr
         current: 0,
         total: 0,
         currentFile: undefined,
-        step: 'scanning',
+        step: operationType === 'import' ? 'scanning' : 'deleting_selected',
       });
       setIsCompleted(false);
     }
-  }, [isOpen]);
+  }, [isOpen, operationType]);
+
+  const getDialogTitle = () => {
+    return operationType === 'delete' ? '正在删除文件' : '正在导入图片';
+  };
 
   const getStepText = (step: string) => {
     switch (step) {
@@ -59,6 +84,14 @@ export function ImportProgressDialog({ isOpen, onClose }: ImportProgressDialogPr
         return '正在生成缩略图...';
       case 'extracting_metadata':
         return '正在提取元数据...';
+      case 'checking_database':
+        return '正在检查数据库...';
+      case 'saving_to_database':
+        return '正在保存到数据库...';
+      case 'deleting_selected':
+        return '正在删除选中文件...';
+      case 'deleting_all':
+        return '正在清空所有文件...';
       case 'completed':
         return '处理完成！';
       default:
@@ -78,7 +111,9 @@ export function ImportProgressDialog({ isOpen, onClose }: ImportProgressDialogPr
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>正在导入图片</DialogTitle>
+          <DialogTitle>
+            {getDialogTitle()}
+          </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
