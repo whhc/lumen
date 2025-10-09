@@ -28,3 +28,5 @@ chrono = { version = "0.4", features = ["serde"] }
 kamadak-exif = "0.6"
 image = "0.25"
 rusqlite = { version = "0.28.0", features = ["bundled"] }
+log = "^0.4"
+tauri-plugin-log = "2"

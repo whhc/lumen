@@ -18,8 +18,8 @@ const rootElement = document.getElementById('root')!;
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    <React.StrictMode>
+    // <React.StrictMode>
       <RouterProvider router={router} />
-    </React.StrictMode>
+    // </React.StrictMode>
   );
 }

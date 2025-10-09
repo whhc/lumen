@@ -9,6 +9,7 @@ use std::{
 use chrono::Utc;
 use exif::{Reader as ExifReader, Tag};
 use image::image_dimensions;
+use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
@@ -100,7 +101,7 @@ pub async fn read_images_in_dir(app: AppHandle, dir: String) -> Result<Vec<Media
                         new_paths.push(path.clone());
                     }
                     Err(e) => {
-                        println!("检查数据库时出错: {}", e);
+                        info!("检查数据库时出错: {}", e);
                         // 出错时也认为文件需要处理
                         new_paths.push(path.clone());
                     }
@@ -176,7 +177,7 @@ pub async fn read_images_in_dir(app: AppHandle, dir: String) -> Result<Vec<Media
 
                     for (index, record) in new_records.iter().enumerate() {
                         if let Err(e) = repository.save(record).await {
-                            println!("保存记录到数据库时出错: {}", e);
+                            info!("保存记录到数据库时出错: {}", e);
                         }
 
                         // 发送保存进度
@@ -376,7 +377,9 @@ fn extract_exif_date_fast(path: &Path) -> Option<chrono::DateTime<Utc>> {
     let exif_reader = ExifReader::new();
     let exif = exif_reader.read_from_container(&mut bufreader).ok()?;
 
+    info!("尝试从 EXIF 中提取日期信息...");
     if let Some(field) = exif.get_field(Tag::DateTimeOriginal, exif::In::PRIMARY) {
+        info!("EXIF 日期信息: {}", field.display_value());
         // 尝试解析日期，失败时返回 None 而不是 panic
         field
             .display_value()
@@ -384,6 +387,7 @@ fn extract_exif_date_fast(path: &Path) -> Option<chrono::DateTime<Utc>> {
             .parse::<chrono::DateTime<Utc>>()
             .ok()
     } else {
+        info!("无法从 EXIF 中提取日期信息");
         None
     }
 }
@@ -420,7 +424,7 @@ pub fn get_media_records(app: AppHandle, paths: Vec<String>) -> Result<Vec<Media
 
     if total_count > 0 {
         // 发送开始处理事件
-        println!(
+        info!(
             "Sending progress event: generating_thumbnails 0/{}",
             total_count
         );
@@ -455,7 +459,7 @@ pub fn get_media_records(app: AppHandle, paths: Vec<String>) -> Result<Vec<Media
         let valid_results: Vec<MediaRecord> = results.into_iter().filter_map(|r| r).collect();
 
         // 发送完成事件
-        println!(
+        info!(
             "Sending progress event: completed {}/{}",
             total_count, total_count
         );
@@ -520,7 +524,7 @@ pub async fn get_media_records_with_db(
                 new_paths.push(path.clone());
             }
             Err(e) => {
-                println!("检查数据库时出错: {}", e);
+                info!("检查数据库时出错: {}", e);
                 // 出错时也认为文件需要处理
                 new_paths.push(path.clone());
             }
@@ -559,7 +563,7 @@ pub async fn get_media_records_with_db(
 
         for (index, record) in new_records.iter().enumerate() {
             if let Err(e) = repository.save(record).await {
-                println!("保存记录到数据库时出错: {}", e);
+                info!("保存记录到数据库时出错: {}", e);
             }
 
             // 发送保存进度

@@ -1,5 +1,6 @@
 use crate::database::media_repository::MediaRepository;
 use crate::models::image::MediaRecord;
+use log::{error, info};
 use tauri::{AppHandle, Emitter};
 
 /// 图片处理进度事件
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ImagesDealProgressEvent {
+pub struct _ImagesDealProgressEvent {
     pub current: usize,
     pub total: usize,
     pub current_file: Option<String>,
@@ -33,7 +34,6 @@ pub async fn get_media_list(app: AppHandle) -> Result<Vec<MediaRecord>, String> 
         .find_all()
         .await
         .map_err(|e| format!("获取媒体列表失败: {}", e));
-    println!("获取媒体列表成功: {:?}", res);
     res
 }
 
@@ -76,7 +76,7 @@ pub async fn delete_selected_media(
     let mut deleted_count = 0;
     let total_count = media_ids.len();
 
-    println!("开始删除 {} 个选中的媒体记录", total_count);
+    info!("开始删除 {} 个选中的媒体记录", total_count);
 
     // 发送删除开始事件
     let _ = app.emit(
@@ -107,14 +107,14 @@ pub async fn delete_selected_media(
             match repository.delete_by_path(path).await {
                 Ok(_) => {
                     deleted_count += 1;
-                    println!("已删除媒体记录: {}", path);
+                    info!("已删除媒体记录: {}", path);
                 }
                 Err(e) => {
-                    eprintln!("删除媒体记录失败 {}: {}", path, e);
+                    error!("删除媒体记录失败 {}: {}", path, e);
                 }
             }
         } else {
-            eprintln!("未找到ID为 {} 的媒体记录", media_id);
+            error!("未找到ID为 {} 的媒体记录", media_id);
         }
 
         // 发送删除进度
@@ -142,7 +142,7 @@ pub async fn delete_selected_media(
         },
     );
 
-    println!("删除完成，共删除了 {} 个媒体记录", deleted_count);
+    info!("删除完成，共删除了 {} 个媒体记录", deleted_count);
     Ok(deleted_count)
 }
 
@@ -151,7 +151,7 @@ pub async fn delete_selected_media(
 pub async fn delete_all_media(app: AppHandle) -> Result<String, String> {
     let repository = MediaRepository::new(app.clone());
 
-    println!("开始删除所有媒体记录");
+    info!("开始删除所有媒体记录");
 
     // 发送删除开始事件
     let _ = app.emit(
@@ -177,12 +177,12 @@ pub async fn delete_all_media(app: AppHandle) -> Result<String, String> {
                 },
             );
 
-            println!("所有媒体记录已删除");
+            info!("所有媒体记录已删除");
             Ok("所有媒体记录已成功删除".to_string())
         }
         Err(e) => {
             let error_msg = format!("删除所有媒体记录失败: {}", e);
-            eprintln!("{}", error_msg);
+            error!("{}", error_msg);
             Err(error_msg)
         }
     }

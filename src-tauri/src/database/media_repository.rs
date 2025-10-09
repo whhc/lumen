@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use log::{error, info};
 use rusqlite::{params, Connection};
 use serde_json;
 use std::collections::HashMap;
@@ -58,7 +59,7 @@ impl MediaRepository {
             }
             Ok(None) => Ok(None),
             Err(e) => {
-                eprintln!("数据库查询出错: {}", e);
+                error!("数据库查询出错: {}", e);
                 Ok(None)
             }
         }
@@ -74,7 +75,7 @@ impl MediaRepository {
             cache.insert(record.path.clone(), record.clone());
         }
 
-        println!(
+        info!(
             "已保存媒体记录到 SQLite 数据库: {} ({})",
             record.name, record.path
         );
@@ -92,11 +93,10 @@ impl MediaRepository {
                         cache.insert(record.path.clone(), record.clone());
                     }
                 }
-                println!("从 SQLite 数据库获取了 {} 条媒体记录", records.len());
                 Ok(records)
             }
             Err(e) => {
-                eprintln!("从数据库获取所有记录时出错: {}", e);
+                error!("从数据库获取所有记录时出错: {}", e);
                 Ok(vec![])
             }
         }
@@ -112,12 +112,12 @@ impl MediaRepository {
             cache.remove(path);
         }
 
-        println!("已从 SQLite 数据库删除媒体记录: {}", path);
+        info!("已从 SQLite 数据库删除媒体记录: {}", path);
         Ok(())
     }
 
     /// 检查文件是否存在于数据库中
-    pub async fn exists_by_path(&self, path: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    pub async fn _exists_by_path(&self, path: &str) -> Result<bool, Box<dyn std::error::Error>> {
         // 首先检查缓存
         if let Ok(cache) = self.cache.lock() {
             if cache.contains_key(path) {
@@ -134,7 +134,7 @@ impl MediaRepository {
     }
 
     /// 获取已处理文件数量
-    pub fn get_processed_count(&self) -> usize {
+    pub fn _get_processed_count(&self) -> usize {
         if let Ok(cache) = self.cache.lock() {
             cache.len()
         } else {
@@ -152,7 +152,7 @@ impl MediaRepository {
             cache.clear();
         }
 
-        println!("已清空 SQLite 数据库中的所有媒体记录");
+        info!("已清空 SQLite 数据库中的所有媒体记录");
         Ok(())
     }
 
@@ -161,7 +161,7 @@ impl MediaRepository {
         &self,
         path: &str,
     ) -> Result<Option<MediaRecord>, Box<dyn std::error::Error>> {
-        println!("正在从 SQLite 数据库查询路径: {}", path);
+        info!("正在从 SQLite 数据库查询路径: {}", path);
 
         let conn = self.get_connection()?;
 
@@ -271,10 +271,7 @@ impl MediaRepository {
         });
 
         match result {
-            Ok(record) => {
-                println!("从 SQLite 数据库查询到记录: {}", record.name);
-                Ok(Some(record))
-            }
+            Ok(record) => Ok(Some(record)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(Box::new(e)),
         }
@@ -285,7 +282,7 @@ impl MediaRepository {
         &self,
         record: &MediaRecord,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        println!("正在保存记录到 SQLite 数据库: {}", record.path);
+        info!("正在保存记录到 SQLite 数据库: {}", record.path);
 
         let conn = self.get_connection()?;
 
@@ -354,7 +351,7 @@ impl MediaRepository {
             ],
         )?;
 
-        println!("已成功保存记录到 SQLite 数据库: {}", record.name);
+        info!("已成功保存记录到 SQLite 数据库: {}", record.name);
         Ok(())
     }
 
@@ -362,7 +359,7 @@ impl MediaRepository {
     async fn query_all_from_database(
         &self,
     ) -> Result<Vec<MediaRecord>, Box<dyn std::error::Error>> {
-        println!("正在从 SQLite 数据库查询所有记录");
+        info!("正在从 SQLite 数据库查询所有记录");
 
         let conn = self.get_connection()?;
 
@@ -492,13 +489,13 @@ impl MediaRepository {
             records.push(record_result?);
         }
 
-        println!("从 SQLite 数据库查询到 {} 条记录", records.len());
+        info!("从 SQLite 数据库查询到 {} 条记录", records.len());
         Ok(records)
     }
 
     /// 从数据库删除记录
     async fn delete_from_database(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        println!("正在从 SQLite 数据库删除记录: {}", path);
+        info!("正在从 SQLite 数据库删除记录: {}", path);
 
         let conn = self.get_connection()?;
 
@@ -506,9 +503,9 @@ impl MediaRepository {
             conn.execute("DELETE FROM media_records WHERE path = ?1", params![path])?;
 
         if affected_rows > 0 {
-            println!("已成功从 SQLite 数据库删除记录: {}", path);
+            info!("已成功从 SQLite 数据库删除记录: {}", path);
         } else {
-            println!("未找到要删除的记录: {}", path);
+            info!("未找到要删除的记录: {}", path);
         }
 
         Ok(())
@@ -516,13 +513,13 @@ impl MediaRepository {
 
     /// 清空数据库
     async fn clear_database(&self) -> Result<(), Box<dyn std::error::Error>> {
-        println!("正在清空 SQLite 数据库");
+        info!("正在清空 SQLite 数据库");
 
         let conn = self.get_connection()?;
 
         let affected_rows = conn.execute("DELETE FROM media_records", [])?;
 
-        println!("已清空 SQLite 数据库，删除了 {} 条记录", affected_rows);
+        info!("已清空 SQLite 数据库，删除了 {} 条记录", affected_rows);
 
         Ok(())
     }
